@@ -45,7 +45,14 @@ export class FigiInstrument extends RobotModule {
    */
   async loadCandles(req: Pick<CandlesReqParams, 'interval' | 'minCount'>) {
     this.logger.log(`Загружаю ${req.minCount} свечей для ${this.info?.ticker} ...`);
-    const { candles } = await this.robot.candlesLoader.getCandles({ figi: this.figi, ...req });
+    let candles: HistoricCandle[];
+    try {
+      candles = (await this.robot.candlesLoader.getCandles({ figi: this.figi, ...req })).candles;
+    } catch (e) {
+      this.logger.warn(e.message);
+      this.logger.warn("Retry");
+      candles = (await this.robot.candlesLoader.getCandles({ figi: this.figi, ...req })).candles;
+    }
     this.candles = candles;
     this.logger.log(`Свечи загружены: ${candles.length}, текущая цена: ${this.getCurrentPrice()}`);
   }
