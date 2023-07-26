@@ -4,7 +4,6 @@
 import {Logger} from '@vitalets/logger';
 import {Helpers} from 'tinkoff-invest-api';
 import {HistoricCandle} from 'tinkoff-invest-api/dist/generated/marketdata.js';
-import {BaseStrategy} from '../baseStrategy.js';
 import {RobotModule} from "../utils/robot-module";
 
 export type SignalResult = 'buy' | 'sell' | void;
@@ -18,7 +17,7 @@ export abstract class Signal<T> {
   logger: Logger;
   charts: Record<string, [Date, number][]> = {};
 
-  constructor(protected strategy: RobotModule, protected config: T) {
+  protected constructor(protected strategy: RobotModule, protected config: T) {
     this.logger = strategy.logger.withPrefix(`[${this.constructor.name}]:`);
   }
 

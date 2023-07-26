@@ -3,9 +3,8 @@
  * При сильном отклонении текущей цены от начальной происходит продажа актива (takeProfit / stopLoss)
  */
 
-import { BaseStrategy } from '../baseStrategy.js';
 import { Signal, SignalParams, SignalResult } from './base.js';
-import {RobotModule} from "../utils/robot-module";
+import { RobotModule } from "../utils/robot-module";
 
 const defaultConfig = {
   /** При каком % превышении цены продаем актив, чтобы зафиксировать прибыль */

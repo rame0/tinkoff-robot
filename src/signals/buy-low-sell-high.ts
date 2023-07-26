@@ -3,10 +3,8 @@
  * При сильном отклонении текущей цены от начальной происходит продажа актива (takeProfit / stopLoss)
  */
 
-import {BaseStrategy} from '../baseStrategy.js';
-import {Signal, SignalParams, SignalResult} from './base.js';
-import {RobotModule} from "../utils/robot-module";
-import {Helpers} from "tinkoff-invest-api";
+import { Signal, SignalParams, SignalResult } from './base.js';
+import { RobotModule } from "../utils/robot-module";
 
 const defaultConfig = {
   /** При каком % превышении цены продаем актив, чтобы зафиксировать прибыль */
@@ -26,10 +24,12 @@ export class BuyLowSellHigh extends Signal<ProfitLossSignalConfig> {
     return 1;
   }
 
-  calc({candles, profit}: SignalParams, {buyPrice, brokerFee, availableLots}): SignalResult {
+  calc({ candles, profit }: SignalParams, { buyPrice, brokerFee, availableLots }): SignalResult {
     const closePrices = this.getPrices(candles, 'close').at(-2);
     const currentPrice = this.getPrices(candles, 'close').at(-1);
-    // console.log(`currentPrice: ${currentPrice}, buyPrice: ${buyPrice}`);
+    if (profit >= 0) {
+      this.logger.warn(`Цена повысилась более чем на ${profit}%`);
+    }
     if (availableLots > 0 && currentPrice >= buyPrice + brokerFee) {
       this.logger.warn(`Цена повысилась продаем`);
       return 'sell';

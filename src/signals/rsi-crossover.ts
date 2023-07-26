@@ -5,10 +5,9 @@
 
 /* eslint-disable max-statements */
 
-import { BaseStrategy } from '../baseStrategy.js';
-import { crossover, crossunder, rsi, toSeries} from '../utils/indicators.js';
+import { crossover, crossunder, rsi, toSeries } from '../utils/indicators.js';
 import { Signal, SignalParams, SignalResult } from './base.js';
-import {RobotModule} from "../utils/robot-module";
+import { RobotModule } from "../utils/robot-module";
 
 const defaultConfig = {
   /** Кол-во точек для расчета rsi */

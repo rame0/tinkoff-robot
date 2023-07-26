@@ -101,7 +101,13 @@ async function selectAccountCycle(accounts: Account[], start: Date, end: Date): 
 
   let select_another_position = 1;
   while (select_another_position > 0) {
-    select_another_position = await selectPositionCycle(api_account, portfolio, operations, start, end);
+    select_another_position = await selectPositionCycle({
+      api_account: api_account,
+      portfolio: portfolio,
+      allOperations: operations,
+      start: start,
+      end: end
+    });
   }
 
   const response = await prompts({
@@ -112,12 +118,22 @@ async function selectAccountCycle(accounts: Account[], start: Date, end: Date): 
   return response.select_another;
 }
 
-async function selectPositionCycle(api_account: RealAccount | SandboxAccount, portfolio: PortfolioResponse,
-                                   allOperations: OperationsByFigi,
-                                   start: Date, end: Date): Promise<number> {
-  const selectedFigi = await selectPosition(portfolio.positions, allOperations);
+async function selectPositionCycle(options: {
+  api_account: RealAccount | SandboxAccount, portfolio: PortfolioResponse,
+  allOperations: OperationsByFigi,
+  start: Date, end: Date
+}): Promise<number> {
+  const selectedFigi = await selectPosition(options.portfolio.positions, options.allOperations);
 
-  await countPerformance(api_account, selectedFigi, portfolio.positions[ selectedFigi ], allOperations, start, end, args.short);
+  await countPerformance({
+    account: options.api_account,
+    figi: selectedFigi,
+    position: options.portfolio.positions[ selectedFigi ],
+    operations: options.allOperations[ selectedFigi ],
+    start: options.start,
+    end: options.end,
+    short: args.short
+  });
 
   const response = await prompts({
     type: 'number',
@@ -131,8 +147,32 @@ async function selectPositionCycle(api_account: RealAccount | SandboxAccount, po
 async function selectAccount(accounts: Account[], start: Date, end: Date):
   Promise<{ api_account: RealAccount, portfolio: PortfolioResponse, operations: OperationsByFigi }> {
 
+  const {
+    portfolios,
+    allOperations,
+    api_accounts
+  } = await prepareAndShowAccounts(accounts, start, end);
+
+  const response = await prompts({
+    type: 'number',
+    name: 'account_number',
+    message: `Какой аккаунт использовать (${[...accounts.keys()]})? :`,
+    validate: value => value >= 0 && value < accounts.length,
+    initial: 0,
+    min: 0,
+    max: accounts.length - 1,
+  });
+  const api_account = api_accounts[ response.account_number ],
+    portfolio = portfolios[ response.account_number ],
+    operations = allOperations[ response.account_number ];
+  // account = accounts[ response.account_number ];
+
+  return { api_account, portfolio, operations };
+}
+
+async function prepareAndShowAccounts(accounts: Account[], start: Date, end: Date) {
   const portfolios: PortfolioResponse[] = [],
-    alloperations: OperationsByFigi[] = [],
+    allOperations: OperationsByFigi[] = [],
     api_accounts: RealAccount[] = [];
 
   for (const key in accounts) {
@@ -149,29 +189,14 @@ async function selectAccount(accounts: Account[], start: Date, end: Date):
       figi: '',
     });
 
-    alloperations[ key ] = groupBy(operationsResponse.operations.filter((operation) => {
+    allOperations[ key ] = groupBy(operationsResponse.operations.filter((operation) => {
         return operation.figi != '';
       }),
       'figi');
 
     showAccountHeader(api_accounts[ key ], portfolios[ key ], accounts[ key ], key);
   }
-
-  const response = await prompts({
-    type: 'number',
-    name: 'account_number',
-    message: `Какой аккаунт использовать (${[...accounts.keys()]})? :`,
-    validate: value => value >= 0 && value < accounts.length,
-    initial: 0,
-    min: 0,
-    max: accounts.length - 1,
-  });
-  const api_account = api_accounts[ response.account_number ],
-    portfolio = portfolios[ response.account_number ],
-    operations = alloperations[ response.account_number ];
-  // account = accounts[ response.account_number ];
-
-  return { api_account, portfolio, operations };
+  return { portfolios, allOperations, api_accounts };
 }
 
 function showAccountHeader(account: TinkoffAccount, portfolio: PortfolioResponse, a: Account, key: string) {
@@ -257,21 +282,70 @@ async function getInfo(figi: string): Promise<Instrument | undefined> {
   return instrument;
 }
 
-async function countPerformance(account: RealAccount | SandboxAccount,
-                                figi: string,
-                                position: PortfolioPosition,
-                                allOperations: OperationsByFigi,
-                                start: Date, end: Date, short: boolean) {
+// eslint-disable-next-line
+async function countPerformance(options: {
+  account: RealAccount | SandboxAccount,
+  figi: string,
+  position: PortfolioPosition,
+  operations: Operation[],
+  start: Date, end: Date, short: boolean
+}) {
 
-  const operations = allOperations[ figi ] || undefined;
-  if (position) {
-    position = position[ 0 ];
-  }
-  if (!operations) {
+  options.position = options.position ? options.position[ 0 ] : undefined;
+
+  if (!options.operations) {
     console.log(kleur.red("Нет операций за выбранный период."));
     return;
   }
 
+  const
+    {
+      message,
+      total_buys,
+      total_sells,
+      total_operations,
+      turnover,
+      dividend,
+      taxes,
+      taxes_back,
+      commissions,
+      service_commission,
+      total_buys_price,
+      balance,
+    } = processOperations(options.operations);
+
+  const possible_revenue =
+    (api.helpers.toNumber(options.position?.quantity) || 0)
+    * (api.helpers.toNumber(options.position?.currentPrice) || 0)
+    + balance;
+
+  if (!options.short) {
+    console.log(message);
+  }
+
+  console.log(kleur.bold(kleur.bgYellow(kleur.black("Figi: "))) + options.figi);
+  console.log(kleur.yellow("Всего куплено: ") + total_buys);
+  console.log(kleur.yellow("Всего продано: ") + total_sells);
+  console.log(kleur.yellow("Текущий баланс: ") + (api.helpers.toNumber(options.position?.quantity) || 0));
+  console.log(kleur.yellow("Дивиденды и купоны: ") + dividend);
+  console.log(kleur.yellow("Всего операций: ") + total_operations);
+  console.log(kleur.yellow("Всего комиссий: ") + commissions);
+  console.log(kleur.yellow("Оплата тарифа: ") + service_commission);
+  console.log(kleur.yellow("Всего налогов: ") + taxes);
+  console.log(kleur.yellow("Корректировка налогов: ") + taxes_back);
+  console.log(kleur.blue("Оборот: " + turnover));
+  console.log(kleur.blue("Ср.Цена за штуку: " + total_buys_price / total_buys));
+
+  console.log(balance > 0 ? kleur.green("Доход: " + balance) : kleur.red("Убыток: " + balance));
+
+  console.log(kleur.blue("Если продать текущие позиции:"));
+
+  console.log(possible_revenue > 0 ? kleur.green("Доход: " + possible_revenue) : kleur.red("Убыток: " + possible_revenue));
+
+}
+
+// eslint-disable-next-line complexity
+function processOperations(operations: Operation[]) {
   let
     message = "",
     total_buys = 0,
@@ -348,42 +422,22 @@ async function countPerformance(account: RealAccount | SandboxAccount,
         service_commission += payment;
         break;
       default:
-        console.log(operation);
+        // console.log(operation);
         break;
     }
   }
-
-  const possible_revenue =
-    (api.helpers.toNumber(position?.quantity) || 0)
-    * (api.helpers.toNumber(position?.currentPrice) || 0)
-    + balance;
-
-  if (!short) {
-    console.log(message);
-  }
-
-  console.log(kleur.bold(kleur.bgYellow(kleur.black("Figi: "))) + figi);
-  console.log(kleur.yellow("Всего куплено: ") + total_buys);
-  console.log(kleur.yellow("Всего продано: ") + total_sells);
-  console.log(kleur.yellow("Текущий баланс: ") + (api.helpers.toNumber(position?.quantity) || 0));
-  console.log(kleur.yellow("Дивиденды и купоны: ") + dividend);
-  console.log(kleur.yellow("Всего операций: ") + total_operations);
-  console.log(kleur.yellow("Всего комиссий: ") + commissions);
-  console.log(kleur.yellow("Оплата тарифа: ") + service_commission);
-  console.log(kleur.yellow("Всего налогов: ") + taxes);
-  console.log(kleur.yellow("Корректировка налогов: ") + taxes_back);
-  console.log(kleur.blue("Оборот: " + turnover));
-  console.log(kleur.blue("Ср.Цена за штуку: " + total_buys_price / total_buys));
-  if (balance > 0) {
-    console.log(kleur.green("Доход: " + balance));
-  } else {
-    console.log(kleur.red("Убыток: " + balance));
-  }
-  console.log(kleur.blue("Если продать текущие позиции:"));
-  if (possible_revenue > 0) {
-    console.log(kleur.green("Доход: " + possible_revenue));
-  } else {
-    console.log(kleur.red("Убыток: " + possible_revenue));
-  }
+  return {
+    message,
+    total_buys,
+    total_sells,
+    total_operations,
+    turnover,
+    dividend,
+    taxes,
+    taxes_back,
+    commissions,
+    service_commission,
+    total_buys_price,
+    balance
+  };
 }
-

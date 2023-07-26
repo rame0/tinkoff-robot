@@ -8,10 +8,9 @@
 
 /* eslint-disable max-statements */
 
-import { BaseStrategy } from '../baseStrategy.js';
 import { crossover, crossunder, sma } from '../utils/indicators.js';
 import { Signal, SignalParams, SignalResult } from './base.js';
-import {RobotModule} from "../utils/robot-module";
+import { RobotModule } from "../utils/robot-module";
 
 const defaultConfig = {
   /** Кол-во точек для расчета быстрого тренда */

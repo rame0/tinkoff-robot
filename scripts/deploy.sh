@@ -21,9 +21,9 @@ update_latest_tag() {
 }
 
 check_uncommitted_changes
-npm run lint
-npm test
-npm run build
+pnpm run lint
+pnpm test
+pnpm run build
 npx deploy-fn
 update_latest_tag
 
