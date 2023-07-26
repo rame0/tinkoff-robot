@@ -20,7 +20,7 @@ const configOverwrite: Partial<RobotConfig> = {
 
 export const handler: Handler<TimerMessage> = async event => {
   try {
-    const finalConfig = { ...config, ...configOverwrite };
+    const finalConfig = { ...await config(), ...configOverwrite };
     const robot = new Robot(api, finalConfig);
     await robot.runOnce();
   } catch (e) {

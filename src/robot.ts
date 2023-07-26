@@ -2,13 +2,15 @@
  * Входная точка для торгового робота.
  * Робот запускает параллельно несколько стратегий, переданных в конфиге.
  */
-import { CandlesLoader, RealAccount, SandboxAccount, TinkoffAccount, TinkoffInvestApi } from 'tinkoff-invest-api';
-import { Logger, LogLevel } from '@vitalets/logger';
-import { Strategy, StrategyConfig } from './strategy.js';
-import { Orders } from './account/orders.js';
-import { Portfolio } from './account/portfolio.js';
+import {CandlesLoader, RealAccount, SandboxAccount, TinkoffAccount, TinkoffInvestApi} from 'tinkoff-invest-api';
+import {Logger, LogLevel} from '@vitalets/logger';
+import {BaseStrategy, StrategyConfig} from './baseStrategy.js';
+import {Orders} from './account/orders.js';
+import {Portfolio} from './account/portfolio.js';
+import {ProfitRsiSMMAStrategy} from "./strategies/profitRsiSMMAStrategy.js";
+import {StupidStrategy} from "./strategies/stupidStrategy.js";
 
-const { REAL_ACCOUNT_ID = '', SANDBOX_ACCOUNT_ID = '' } = process.env;
+const {REAL_ACCOUNT_ID = '', SANDBOX_ACCOUNT_ID = ''} = process.env;
 
 export interface RobotConfig {
   /** Используем реальный счет или песочницу */
@@ -35,20 +37,23 @@ export class Robot {
   candlesLoader: CandlesLoader;
   orders: Orders;
   portfolio: Portfolio;
-  strategies: Strategy[];
+  strategies: BaseStrategy[];
 
   logger: Logger;
 
   constructor(public api: TinkoffInvestApi, config: RobotConfig) {
     this.config = Object.assign({}, defaults, config);
-    this.logger = new Logger({ prefix: '[robot]:', level: this.config.logLevel as LogLevel });
+    this.logger = new Logger({prefix: '[robot]:', level: this.config.logLevel as LogLevel});
     this.account = config.useRealAccount
       ? new RealAccount(api, REAL_ACCOUNT_ID)
       : new SandboxAccount(api, SANDBOX_ACCOUNT_ID);
-    this.candlesLoader = new CandlesLoader(api, { cacheDir: this.config.cacheDir });
+    this.candlesLoader = new CandlesLoader(api, {cacheDir: this.config.cacheDir});
     this.orders = new Orders(this);
     this.portfolio = new Portfolio(this);
-    this.strategies = this.config.strategies.map(strategyConfig => new Strategy(this, strategyConfig));
+
+
+    this.strategies = this.config.strategies.map(sc => sc.strategyType == 0 ? new ProfitRsiSMMAStrategy(this, sc)
+                                                                            :new StupidStrategy(this, sc));
   }
 
   /**

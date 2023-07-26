@@ -8,9 +8,10 @@
 
 /* eslint-disable max-statements */
 
-import { Strategy } from '../strategy.js';
+import { BaseStrategy } from '../baseStrategy.js';
 import { crossover, crossunder, sma } from '../utils/indicators.js';
 import { Signal, SignalParams, SignalResult } from './base.js';
+import {RobotModule} from "../utils/robot-module";
 
 const defaultConfig = {
   /** Кол-во точек для расчета быстрого тренда */
@@ -22,7 +23,7 @@ const defaultConfig = {
 export type SmaCrossoverSignalConfig = typeof defaultConfig;
 
 export class SmaCrossoverSignal extends Signal<SmaCrossoverSignalConfig> {
-  constructor(protected strategy: Strategy, config: SmaCrossoverSignalConfig) {
+  constructor(protected strategy: RobotModule, config: SmaCrossoverSignalConfig) {
     super(strategy, Object.assign({}, defaultConfig, config));
   }
 

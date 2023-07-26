@@ -5,9 +5,10 @@
 
 /* eslint-disable max-statements */
 
-import { Strategy } from '../strategy.js';
+import { BaseStrategy } from '../baseStrategy.js';
 import { crossover, crossunder, rsi, toSeries} from '../utils/indicators.js';
 import { Signal, SignalParams, SignalResult } from './base.js';
+import {RobotModule} from "../utils/robot-module";
 
 const defaultConfig = {
   /** Кол-во точек для расчета rsi */
@@ -21,7 +22,7 @@ const defaultConfig = {
 export type RsiCrossoverSignalConfig = typeof defaultConfig;
 
 export class RsiCrossoverSignal extends Signal<RsiCrossoverSignalConfig> {
-  constructor(protected strategy: Strategy, config: RsiCrossoverSignalConfig) {
+  constructor(protected strategy: RobotModule, config: RsiCrossoverSignalConfig) {
     super(strategy, Object.assign({}, defaultConfig, config));
   }
 

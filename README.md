@@ -70,6 +70,9 @@ Cтратегия использует комбинацию 3-х сигнало�
 Проверка робота на исторических данных сделана с помощью [tinkoff-local-broker](https://github.com/vitalets/tinkoff-local-broker).
 
 1. [Запустите](https://github.com/vitalets/tinkoff-local-broker#запуск-сервера) локальный брокер в отдельном окне терминала
+   ```batch
+      docker run --init --rm -p 8080:8080 -v $(pwd)/.cache:/app/.cache -e 'DEBUG=tinkoff-local-broker:*' vitalets/tinkoff-local-broker
+      ```
 2. Установите нужный диапазон дат в файле `scripts/run-bakctest.ts`
 3. Запустите
    ```

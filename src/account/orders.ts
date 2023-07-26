@@ -1,8 +1,8 @@
 /**
  * Класс работы с заявками.
  */
-import { randomUUID } from 'crypto';
-import { Status, ClientError } from 'nice-grpc';
+import {randomUUID} from 'crypto';
+import {Status, ClientError} from 'nice-grpc';
 import {
   OrderDirection,
   OrderExecutionReportStatus,
@@ -10,7 +10,7 @@ import {
   OrderType,
   PostOrderRequest
 } from 'tinkoff-invest-api/dist/generated/orders.js';
-import { RobotModule } from '../utils/robot-module.js';
+import {RobotModule} from '../utils/robot-module.js';
 
 export type LimitOrderReq = Pick<PostOrderRequest, 'figi' | 'direction' | 'quantity' | 'price'>;
 
@@ -25,7 +25,7 @@ export class Orders extends RobotModule {
    * Загружаем существующие заявки
    */
   async load() {
-    const { orders } = await this.account.getOrders();
+    const {orders} = await this.account.getOrders();
     this.items = orders;
     this.logItems();
   }
@@ -33,7 +33,7 @@ export class Orders extends RobotModule {
   /**
    * Создаем новую лимит-заявку
    */
-  async postLimitOrder({ figi, direction, quantity, price }: LimitOrderReq) {
+  async postLimitOrder({figi, direction, quantity, price}: LimitOrderReq) {
     const order = this.robot.config.dryRun ? null : await this.account.postOrder({
       figi,
       quantity,
@@ -51,11 +51,17 @@ export class Orders extends RobotModule {
   /**
    * Отменяем все существующие заявки для данного figi.
    */
-  async cancelExistingOrders(figi: string) {
-    const existingOrders = this.items.filter(order => order.figi === figi);
+  async cancelExistingOrders(figi: string, direction?: OrderDirection) {
+    let existingOrders;
+    if (direction) {
+      existingOrders = this.items.filter(order => order.figi === figi
+        && order.direction === direction);
+    } else {
+      existingOrders = this.items.filter(order => order.figi === figi);
+    }
     const tasks = existingOrders.map(async order => {
       const prevPrice = this.api.helpers.toNumber(order.initialSecurityPrice);
-      const { dryRun } = this.robot.config;
+      const {dryRun} = this.robot.config;
       this.logger.warn(`${this.dryRunStr}Отмена предыдущей заявки ${order.orderId}, цена ${prevPrice}`);
       try {
         if (!dryRun) await this.account.cancelOrder(order.orderId);
@@ -88,11 +94,17 @@ export class Orders extends RobotModule {
 
 function formatOrderStatus(status: OrderExecutionReportStatus) {
   switch (status) {
-    case OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_NEW: return 'Новая';
-    case OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_FILL: return 'Исполнена';
-    case OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_PARTIALLYFILL: return 'Частично исполнена';
-    case OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_REJECTED: return 'Отклонена';
-    case OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_CANCELLED: return 'Отменена пользователем';
-    default: return `Неизвестный статус ${status}`;
+    case OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_NEW:
+      return 'Новая';
+    case OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_FILL:
+      return 'Исполнена';
+    case OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_PARTIALLYFILL:
+      return 'Частично исполнена';
+    case OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_REJECTED:
+      return 'Отклонена';
+    case OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_CANCELLED:
+      return 'Отменена пользователем';
+    default:
+      return `Неизвестный статус ${status}`;
   }
 }

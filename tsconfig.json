@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "es2020",
     "module":"ESNext",
-    "strict": true,
+    "strict": false,
     "noEmit": true,
     "useUnknownInCatchVariables": false,
     "forceConsistentCasingInFileNames": true,

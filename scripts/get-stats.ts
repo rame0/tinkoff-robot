@@ -5,7 +5,8 @@
 import { RealAccount, SandboxAccount, TinkoffAccount } from 'tinkoff-invest-api';
 import {
   Operation,
-  OperationState, OperationType,
+  OperationState,
+  OperationType,
   PortfolioPosition,
   PortfolioResponse
 } from 'tinkoff-invest-api/dist/generated/operations.js';
@@ -15,14 +16,17 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import prompts from 'prompts';
 import kleur from 'kleur';
-import { InstrumentIdType } from "tinkoff-invest-api/dist/generated/instruments.js";
-import { Instrument } from "tinkoff-invest-api/dist/generated/instruments.js";
-import { Portfolio } from "../src/account/portfolio";
+import { Instrument, InstrumentIdType } from "tinkoff-invest-api/dist/generated/instruments.js";
+import { groupBy } from "../src/utils/groupBy.js";
 
 interface Arguments extends yargs.Arguments {
   short: boolean;
   start: string;
   end: string;
+}
+
+interface OperationsByFigi {
+  [ figi: string ]: Operation[];
 }
 
 const args: Arguments = yargs(hideBin(process.argv))
@@ -89,14 +93,15 @@ async function getPeriod(args: Arguments) {
 }
 
 async function selectAccountCycle(accounts: Account[], start: Date, end: Date): Promise<number> {
-  const { api_account, portfolio } = await selectAccount(accounts);
+  const { api_account, portfolio, operations }
+    = await selectAccount(accounts, start, end);
   if (!api_account) {
     return 0;
   }
 
   let select_another_position = 1;
   while (select_another_position > 0) {
-    select_another_position = await selectPositionCycle(api_account, portfolio, start, end);
+    select_another_position = await selectPositionCycle(api_account, portfolio, operations, start, end);
   }
 
   const response = await prompts({
@@ -107,12 +112,12 @@ async function selectAccountCycle(accounts: Account[], start: Date, end: Date): 
   return response.select_another;
 }
 
-async function selectPositionCycle(api_account: RealAccount | SandboxAccount, portfolio: PortfolioResponse, start: Date, end: Date): Promise<number> {
-  const position = await selectPosition(portfolio.positions);
-  if (!position) {
-    return 0;
-  }
-  await countPerformance(api_account, position, start, end, args.short);
+async function selectPositionCycle(api_account: RealAccount | SandboxAccount, portfolio: PortfolioResponse,
+                                   allOperations: OperationsByFigi,
+                                   start: Date, end: Date): Promise<number> {
+  const selectedFigi = await selectPosition(portfolio.positions, allOperations);
+
+  await countPerformance(api_account, selectedFigi, portfolio.positions[ selectedFigi ], allOperations, start, end, args.short);
 
   const response = await prompts({
     type: 'number',
@@ -123,15 +128,31 @@ async function selectPositionCycle(api_account: RealAccount | SandboxAccount, po
   return response.select_another;
 }
 
-async function selectAccount(accounts: Account[]):
-  Promise<{ api_account: RealAccount, portfolio: PortfolioResponse }> {
+async function selectAccount(accounts: Account[], start: Date, end: Date):
+  Promise<{ api_account: RealAccount, portfolio: PortfolioResponse, operations: OperationsByFigi }> {
 
   const portfolios: PortfolioResponse[] = [],
+    alloperations: OperationsByFigi[] = [],
     api_accounts: RealAccount[] = [];
 
   for (const key in accounts) {
     api_accounts[ key ] = new RealAccount(api, accounts[ key ].id);
     portfolios[ key ] = await api_accounts[ key ].getPortfolio();
+
+    portfolios[ key ].positions = groupBy(portfolios[ key ].positions, 'figi');
+
+    const operationsResponse = await api.operations.getOperations({
+      accountId: accounts[ key ].id,
+      state: OperationState.OPERATION_STATE_EXECUTED,
+      from: start,
+      to: end,
+      figi: '',
+    });
+
+    alloperations[ key ] = groupBy(operationsResponse.operations.filter((operation) => {
+        return operation.figi != '';
+      }),
+      'figi');
 
     showAccountHeader(api_accounts[ key ], portfolios[ key ], accounts[ key ], key);
   }
@@ -146,10 +167,11 @@ async function selectAccount(accounts: Account[]):
     max: accounts.length - 1,
   });
   const api_account = api_accounts[ response.account_number ],
-    portfolio = portfolios[ response.account_number ];
+    portfolio = portfolios[ response.account_number ],
+    operations = alloperations[ response.account_number ];
   // account = accounts[ response.account_number ];
 
-  return { api_account, portfolio };
+  return { api_account, portfolio, operations };
 }
 
 function showAccountHeader(account: TinkoffAccount, portfolio: PortfolioResponse, a: Account, key: string) {
@@ -173,39 +195,57 @@ function showAccountHeader(account: TinkoffAccount, portfolio: PortfolioResponse
 
 }
 
-async function selectPosition(positions: PortfolioPosition[]) {
-  for (const key in positions) {
-    await showPosition(positions[ key ], key);
+async function selectPosition(positions: PortfolioPosition[], operations: OperationsByFigi) {
+  const figis = [...Object.keys(operations), ...Object.keys(positions)];
+  let key = 0;
+  for (const figi of figis) {
+    let position = positions[ figi ] || undefined;
+    if (position) {
+      position = position[ 0 ];
+    }
+
+    const position_string = await showPosition(figi, key++, position);
+    if (!position) {
+      console.log(kleur.blue(position_string));
+    } else {
+      const expectedYield = position && position.expectedYield ? api.helpers.toNumber(position.expectedYield) : 0;
+      console.log(expectedYield >= 0 ? kleur.green(position_string) : kleur.red(position_string));
+    }
   }
 
   console.log("\n");
   const response = await prompts({
     type: 'number',
     name: 'position_number',
-    message: `По какой позиции вывести отчет (${[...positions.keys()]})? :`,
-    validate: value => value >= 0 && value < positions.length,
+    message: `По какой позиции вывести отчет (0 - ${figis.length - 1})? :`,
+    validate: value => value >= 0 && value < figis.length,
     initial: 0,
     min: 0,
-    max: positions.length - 1,
+    max: figis.length - 1,
   });
 
-  return positions[ response.position_number ];
+  return figis[ response.position_number ];
 }
 
-async function showPosition(p: PortfolioPosition, key: string) {
-  const currency = p.averagePositionPrice?.currency || '';
+async function showPosition(figi: string, key: number, p: PortfolioPosition) {
 
-  const instrument_info = await getInfo(p.figi);
+  const currency = p?.averagePositionPrice?.currency || '';
+
+  const instrument_info = await getInfo(figi);
 
   const s = [
     `# ${key}:`,
     instrument_info?.name,
     `t: ${instrument_info?.ticker}`,
-    `f: ${p.figi}`,
-    `(${p.instrumentType}, ${api.helpers.toNumber(p.quantity)} шт.)`,
-    `(${api.helpers.toNumber(p.expectedYield)} ${currency})`,
-  ].join(', ');
-  console.log(s);
+    `f: ${figi}`,
+  ];
+
+  if (p) {
+    s.push(`(${p?.instrumentType}, ${api.helpers.toNumber(p?.quantity)} шт.)`);
+    s.push(`(${api.helpers.toNumber(p?.expectedYield)} ${currency})`);
+  }
+
+  return s.join(', ');
 }
 
 async function getInfo(figi: string): Promise<Instrument | undefined> {
@@ -217,15 +257,20 @@ async function getInfo(figi: string): Promise<Instrument | undefined> {
   return instrument;
 }
 
-async function countPerformance(account: RealAccount | SandboxAccount, position: PortfolioPosition,
+async function countPerformance(account: RealAccount | SandboxAccount,
+                                figi: string,
+                                position: PortfolioPosition,
+                                allOperations: OperationsByFigi,
                                 start: Date, end: Date, short: boolean) {
 
-  const { operations } = await account.getOperations({
-    figi: position.figi,
-    state: OperationState.OPERATION_STATE_EXECUTED,
-    from: start,
-    to: end,
-  });
+  const operations = allOperations[ figi ] || undefined;
+  if (position) {
+    position = position[ 0 ];
+  }
+  if (!operations) {
+    console.log(kleur.red("Нет операций за выбранный период."));
+    return;
+  }
 
   let
     message = "",
@@ -309,16 +354,18 @@ async function countPerformance(account: RealAccount | SandboxAccount, position:
   }
 
   const possible_revenue =
-    (api.helpers.toNumber(position.quantity) || 0)
-    * (api.helpers.toNumber(position.currentPrice) || 0)
+    (api.helpers.toNumber(position?.quantity) || 0)
+    * (api.helpers.toNumber(position?.currentPrice) || 0)
     + balance;
 
   if (!short) {
     console.log(message);
   }
+
+  console.log(kleur.bold(kleur.bgYellow(kleur.black("Figi: "))) + figi);
   console.log(kleur.yellow("Всего куплено: ") + total_buys);
   console.log(kleur.yellow("Всего продано: ") + total_sells);
-  console.log(kleur.yellow("Текущий баланс: ") + api.helpers.toNumber(position.quantity));
+  console.log(kleur.yellow("Текущий баланс: ") + (api.helpers.toNumber(position?.quantity) || 0));
   console.log(kleur.yellow("Дивиденды и купоны: ") + dividend);
   console.log(kleur.yellow("Всего операций: ") + total_operations);
   console.log(kleur.yellow("Всего комиссий: ") + commissions);

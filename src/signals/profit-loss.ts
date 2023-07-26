@@ -3,8 +3,9 @@
  * При сильном отклонении текущей цены от начальной происходит продажа актива (takeProfit / stopLoss)
  */
 
-import { Strategy } from '../strategy.js';
+import { BaseStrategy } from '../baseStrategy.js';
 import { Signal, SignalParams, SignalResult } from './base.js';
+import {RobotModule} from "../utils/robot-module";
 
 const defaultConfig = {
   /** При каком % превышении цены продаем актив, чтобы зафиксировать прибыль */
@@ -16,7 +17,7 @@ const defaultConfig = {
 export type ProfitLossSignalConfig = typeof defaultConfig;
 
 export class ProfitLossSignal extends Signal<ProfitLossSignalConfig> {
-  constructor(protected strategy: Strategy, config: ProfitLossSignalConfig) {
+  constructor(protected strategy: RobotModule, config: ProfitLossSignalConfig) {
     super(strategy, Object.assign({}, defaultConfig, config));
   }
 
