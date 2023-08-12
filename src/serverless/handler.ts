@@ -10,7 +10,7 @@ fixConsoleForLogging();
 
 const api = new TinkoffInvestApi({
   token: process.env.TINKOFF_API_TOKEN!,
-  appName:' vitalets/tinkoff-robot',
+  appName: ' vitalets/tinkoff-robot',
 });
 
 const configOverwrite: Partial<RobotConfig> = {
@@ -20,9 +20,9 @@ const configOverwrite: Partial<RobotConfig> = {
 
 export const handler: Handler<TimerMessage> = async event => {
   try {
-    const finalConfig = { ...await config(), ...configOverwrite };
+    const finalConfig = { ...await config('main-config', false), ...configOverwrite };
     const robot = new Robot(api, finalConfig);
-    await robot.runOnce();
+    await robot.run();
   } catch (e) {
     throw attachEventToError(e, event);
   }

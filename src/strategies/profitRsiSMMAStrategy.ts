@@ -12,13 +12,13 @@
 
 /* eslint-disable max-statements */
 
-import {Robot} from '../robot.js';
-import {ProfitLossSignal} from '../signals/profit-loss.js';
-import {SmaCrossoverSignal} from '../signals/sma-corssover.js';
-import {FigiInstrument} from '../figi.js';
-import {RsiCrossoverSignal} from '../signals/rsi-crossover.js';
-import {Logger} from '@vitalets/logger';
-import {BaseStrategy, StrategyConfig} from "../baseStrategy.js";
+import { Robot } from '../robot.js';
+import { ProfitLossSignal } from '../signals/profit-loss.js';
+import { SmaCrossoverSignal } from '../signals/sma-corssover.js';
+import { FigiInstrument } from '../figi.js';
+import { RsiCrossoverSignal } from '../signals/rsi-crossover.js';
+import { Logger } from '@vitalets/logger';
+import { BaseStrategy, StrategyConfig } from "../baseStrategy.js";
 
 export class ProfitRsiSMMAStrategy extends BaseStrategy {
   instrument: FigiInstrument;
@@ -31,7 +31,7 @@ export class ProfitRsiSMMAStrategy extends BaseStrategy {
 
   constructor(robot: Robot, public config: StrategyConfig) {
     super(robot, config);
-    this.logger = new Logger({prefix: `[profit_rsi_smma_${config.figi}]:`, level: robot.logger.level});
+    this.logger = new Logger({ prefix: `[profit_rsi_smma_${config.figi}]:`, level: robot.logger.level });
     if (config.profit) this.profitSignal = new ProfitLossSignal(this, config.profit);
     if (config.sma) this.smaSignal = new SmaCrossoverSignal(this, config.sma);
     if (config.rsi) this.rsiSignal = new RsiCrossoverSignal(this, config.rsi);
@@ -42,7 +42,7 @@ export class ProfitRsiSMMAStrategy extends BaseStrategy {
    * todo: здесь может быть более сложная логика комбинации нескольких сигналов.
    */
   protected calcSignal() {
-    const signalParams = {candles: this.instrument.candles, profit: this.currentProfit};
+    const signalParams = { candles: this.instrument.candles, profit: this.currentProfit };
     const signals = {
       profit: this.profitSignal?.calc(signalParams),
       rsi: this.rsiSignal?.calc(signalParams),
@@ -58,9 +58,9 @@ export class ProfitRsiSMMAStrategy extends BaseStrategy {
    */
   protected calcRequiredCandlesCount() {
     const minCounts = [
-      this.profitSignal?.minCandlesCount || 0,
-      this.smaSignal?.minCandlesCount || 0,
-      this.rsiSignal?.minCandlesCount || 0,
+      this.profitSignal?.minCandlesCount || 1,
+      this.smaSignal?.minCandlesCount || 1,
+      this.rsiSignal?.minCandlesCount || 1,
     ];
     return Math.max(...minCounts);
   }

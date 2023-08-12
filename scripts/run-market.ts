@@ -16,15 +16,16 @@
 import { api } from './init-api.js';
 import { Robot } from '../src/robot.js';
 import { config } from '../src/config.js';
-import { CandleInterval } from 'tinkoff-invest-api/dist/generated/marketdata.js';
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
+import { streamingRobot } from "../src/streamingRobot.js";
 
 interface Arguments extends yargs.Arguments {
   real: boolean;
   dry_run: boolean;
   cron: boolean;
   config: string;
+  streaming: boolean;
 }
 
 const args: Arguments = yargs(hideBin(process.argv))
@@ -46,52 +47,36 @@ const args: Arguments = yargs(hideBin(process.argv))
     global: true,
     type: 'boolean',
     description: 'Запуск по расписанию',
-    default: false,
+    conflicts: 'streaming',
+  })
+  .option('streaming', {
+    global: true,
+    type: 'boolean',
+    description: 'Запуск стримингового робота',
+    conflicts: 'cron',
   })
   .option('config', {
     global: true,
     alias: 'c',
     type: 'string',
     description: 'Имя файла конфигурации из папки src/configs',
-    default: 'main-config',
   })
   .help()
   .parse() as Arguments;
 
-const delay = intervalToMs((await config(args.config)).strategies[ 0 ].interval);
-
 main();
 
 async function main() {
-  const finalConfig = { ...await config(args.config), ...args };
-  const robot = new Robot(api, finalConfig);
-  if (args.cron) {
-    await robot.runOnce();
-    return;
-  }
-  while (true) {
-    await robot.runOnce();
-    await sleep(delay);
-  }
-}
+  const finalConfig = { ...await config(args.config, args.streaming), ...args };
 
-async function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function intervalToMs(interval: CandleInterval) {
-  switch (interval) {
-    case CandleInterval.CANDLE_INTERVAL_1_MIN:
-      return 60 * 1000;
-    case CandleInterval.CANDLE_INTERVAL_5_MIN:
-      return 5 * 60 * 1000;
-    case CandleInterval.CANDLE_INTERVAL_15_MIN:
-      return 15 * 60 * 1000;
-    case CandleInterval.CANDLE_INTERVAL_HOUR:
-      return 60 * 60 * 1000;
-    case CandleInterval.CANDLE_INTERVAL_DAY:
-      return 24 * 60 * 60 * 1000;
-    default:
-      throw new Error(`Invalid interval`);
+  if (args.streaming) {
+    console.log('Running streaming robot');
+    const robot = new streamingRobot(api, finalConfig);
+    await robot.run();
+  } else {
+    console.log('Running unary robot');
+    const robot = new Robot(api, finalConfig);
+    await robot.run(args.cron);
   }
+
 }

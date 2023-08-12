@@ -12,18 +12,22 @@
 
 /* eslint-disable max-statements */
 
-import {CandleInterval} from 'tinkoff-invest-api/dist/generated/marketdata.js';
-import {RobotModule} from './utils/robot-module.js';
-import {LimitOrderReq} from './account/orders.js';
-import {Robot} from './robot.js';
-import {ProfitLossSignalConfig} from './signals/profit-loss.js';
-import {SmaCrossoverSignalConfig} from './signals/sma-corssover.js';
-import {FigiInstrument} from './figi.js';
-import {OrderDirection} from 'tinkoff-invest-api/dist/generated/orders.js';
-import {RsiCrossoverSignalConfig} from './signals/rsi-crossover.js';
-import {Logger} from '@vitalets/logger';
-import {SignalResult} from "./signals/base";
+import {
+  CandleInterval,
+  HistoricCandle,
+  SubscriptionInterval
+} from "tinkoff-invest-api/cjs/generated/marketdata";
+import { RobotModule } from './utils/robot-module.js';
+import { LimitOrderReq } from './account/orders.js';
+import { Robot } from './robot.js';
+import { ProfitLossSignalConfig } from './signals/profit-loss.js';
+import { SmaCrossoverSignalConfig } from './signals/sma-corssover.js';
+import { FigiInstrument } from './figi.js';
+import { RsiCrossoverSignalConfig } from './signals/rsi-crossover.js';
+import { Logger } from '@vitalets/logger';
+import { SignalResult } from "./signals/base";
 import { StrategyTypes } from "./strategies/strategyTypes.js";
+import { OrderDirection } from "tinkoff-invest-api/cjs/generated/orders.js";
 
 export interface StrategyConfig {
   /** ID инструмента */
@@ -35,37 +39,54 @@ export interface StrategyConfig {
   /** Тип стратегии */
   strategyType: StrategyTypes,
   /** Интервал свечей */
-  interval: CandleInterval,
+  candleInterval: CandleInterval,
+  /** Интервал обновления по подписке */
+  subscriptionInterval?: SubscriptionInterval,
   /** Конфиг сигнала по отклонению текущей цены */
   profit?: ProfitLossSignalConfig,
   /** Конфиг сигнала по скользящим средним */
   sma?: SmaCrossoverSignalConfig,
   /** Конфиг сигнала по RSI */
   rsi?: RsiCrossoverSignalConfig,
+
+  /** Сколько сигналов к покупке/продаже должно прийти, перед тем как отменять текущий ордер */
+  keepOrdersAlive: {
+    buy: number,
+    sell: number,
+  },
 }
 
 export class BaseStrategy extends RobotModule {
   instrument: FigiInstrument;
   totalProfit = 0;
   currentProfit = 0;
+  requiredCandlesCount = 0;
+  maxHistory = 0;
+  lastTime: Date = new Date(0);
+  delay = 0;
+  failsCounter = { 'buy': 0, 'sell': 0 };
 
   constructor(robot: Robot, public config: StrategyConfig) {
     super(robot);
-    this.logger = new Logger({prefix: `[strategy_${config.figi}]:`, level: robot.logger.level});
+    this.logger = new Logger({ prefix: `[strategy_${config.figi}]:`, level: robot.logger.level });
     this.instrument = new FigiInstrument(robot, this.config.figi);
+    this.requiredCandlesCount = this.calcRequiredCandlesCount();
+    // this.maxHistory = Math.max(this.requiredCandlesCount * 2, 300);
+    this.maxHistory = this.requiredCandlesCount;
   }
 
   /**
    * Входная точка: запуск стратегии.
    */
-  async run() {
+  async run(newCandle?: HistoricCandle) {
     await this.instrument.loadInfo();
     if (!this.instrument.isTradingAvailable()) return;
-    await this.loadCandles();
+
+    await this.addOrLoadCandles(newCandle);
+    await this.robot.orders.load();
     this.calcCurrentProfit();
     const signal = this.calcSignal();
     if (signal) {
-      await this.robot.orders.cancelExistingOrders(this.config.figi);
       await this.robot.portfolio.loadPositionsWithBlocked();
       if (signal === 'buy') await this.buy();
       if (signal === 'sell') await this.sell();
@@ -75,11 +96,19 @@ export class BaseStrategy extends RobotModule {
   /**
    * Загрузка свечей.
    */
-  protected async loadCandles() {
-    await this.instrument.loadCandles({
-      interval: this.config.interval,
-      minCount: this.calcRequiredCandlesCount(),
-    });
+  protected async addOrLoadCandles(newCandle?: HistoricCandle) {
+
+    if (newCandle === undefined || this.instrument.candles.length < this.requiredCandlesCount) {
+      await this.instrument.loadCandles({
+        interval: this.config.candleInterval,
+        minCount: this.requiredCandlesCount,
+      });
+    } else {
+      this.instrument.candles.push(newCandle);
+      if (this.instrument.candles.length > this.maxHistory) {
+        this.instrument.candles.shift();
+      }
+    }
   }
 
   /**
@@ -101,6 +130,9 @@ export class BaseStrategy extends RobotModule {
    * Покупка.
    */
   protected async buy() {
+    if (!await this.checkCancelBuyOrders()) {
+      return;
+    }
     const availableLots = this.calcAvailableLots();
     if (availableLots > 0) {
       this.logger.warn(`Позиция уже в портфеле, лотов ${availableLots}. Ждем сигнала к продаже...`);
@@ -121,10 +153,28 @@ export class BaseStrategy extends RobotModule {
     }
   }
 
+  protected async checkCancelBuyOrders() {
+    const orders = this.robot.orders.items.filter(order => order.figi === this.config.figi
+      && order.direction === OrderDirection.ORDER_DIRECTION_BUY);
+    if (this.failsCounter.buy < this.config.keepOrdersAlive.buy && orders.length > 0) {
+      this.logger.warn(`Есть заявки на покупку, лотов. Ждем исполнения... Попытка ${this.failsCounter.buy + 1} из 5`);
+      this.failsCounter.buy += 1;
+      return false;
+    } else {
+      await this.robot.orders.cancelExistingOrders(this.config.figi, OrderDirection.ORDER_DIRECTION_BUY);
+      this.failsCounter.buy = 0;
+      return true;
+    }
+  }
+
   /**
    * Продажа.
    */
   protected async sell() {
+    if (!await this.checkCancelSellOrders()) {
+      return;
+    }
+
     const availableLots = this.calcAvailableLots();
     if (availableLots === 0) {
       this.logger.warn(`Позиции в портфеле нет. Ждем сигнала к покупке...`);
@@ -151,6 +201,20 @@ export class BaseStrategy extends RobotModule {
     ].join(' '));
 
     await this.robot.orders.postLimitOrder(orderReq);
+  }
+
+  protected async checkCancelSellOrders() {
+    const orders = this.robot.orders.items.filter(order => order.figi === this.config.figi
+      && order.direction === OrderDirection.ORDER_DIRECTION_SELL);
+    if (this.failsCounter.sell < this.config.keepOrdersAlive.sell && orders.length > 0) {
+      this.logger.warn(`Есть заявки на продажу, лотов. Ждем исполнения... Попытка ${this.failsCounter.sell + 1} из 15`);
+      this.failsCounter.sell += 1;
+      return false;
+    } else {
+      await this.robot.orders.cancelExistingOrders(this.config.figi, OrderDirection.ORDER_DIRECTION_SELL);
+      this.failsCounter.sell = 0;
+      return true;
+    }
   }
 
   /**
@@ -194,7 +258,7 @@ export class BaseStrategy extends RobotModule {
   }
 
   protected logSignals(signals: Record<string, unknown>) {
-    const time = this.instrument.candles[this.instrument.candles.length - 1].time?.toLocaleString();
-    this.logger.warn(`Сигналы: ${Object.keys(signals).map(k => `${k}=${signals[k] || 'wait'}`).join(', ')} (${time})`);
+    const time = this.instrument.candles[ this.instrument.candles.length - 1 ].time?.toLocaleString();
+    this.logger.warn(`Сигналы: ${Object.keys(signals).map(k => `${k}=${signals[ k ] || 'wait'}`).join(', ')} (${time})`);
   }
 }

@@ -1,10 +1,11 @@
 /**
  * Конфигурация.
  */
-import { CandleInterval } from "tinkoff-invest-api/cjs/generated/marketdata.js";
+
 import { RobotConfig } from '../robot.js';
 import { StrategyConfig } from "../baseStrategy.js";
 import { StrategyTypes } from "../strategies/strategyTypes.js";
+import { CandleInterval, SubscriptionInterval } from "tinkoff-invest-api/cjs/generated/marketdata.js";
 
 const basic = { // KLSB
   /** ID инструмента */
@@ -15,6 +16,7 @@ const basic = { // KLSB
   brokerFee: 0.05,
   /** Интервал свечей */
   candleInterval: CandleInterval.CANDLE_INTERVAL_1_MIN,
+  subscriptionInterval: SubscriptionInterval.SUBSCRIPTION_INTERVAL_ONE_MINUTE,
   strategyType: StrategyTypes.profitRsiSMMA,
   profit: {
     /** При каком % превышении цены продаем актив, чтобы зафиксировать прибыль */
@@ -25,7 +27,8 @@ const basic = { // KLSB
 
   sma: { fastLength: 6, slowLength: 12, },
   rsi: { period: 14, highLevel: 70, lowLevel: 30, },
-  keepOrdersAlive:{
+
+  keepOrdersAlive: {
     sell: 0,
     buy: 0,
   }

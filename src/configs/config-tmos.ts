@@ -1,7 +1,7 @@
 /**
  * Конфигурация.
  */
-import { CandleInterval } from 'tinkoff-invest-api/dist/generated/marketdata.js';
+import { CandleInterval } from "tinkoff-invest-api/cjs/generated/marketdata.js";
 import { RobotConfig } from '../robot.js';
 import { StrategyTypes } from "../strategies/strategyTypes.js";
 
@@ -22,7 +22,11 @@ export const config: RobotConfig = {
       /** Комиссия брокера, % от суммы сделки */
       brokerFee: 0.0,
       /** Интервал свечей */
-      interval: CandleInterval.CANDLE_INTERVAL_1_MIN,
+      candleInterval: CandleInterval.CANDLE_INTERVAL_1_MIN,
+      keepOrdersAlive: {
+        sell: 15,
+        buy: 5
+      }
     }
   ]
 };

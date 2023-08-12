@@ -3,9 +3,11 @@
  */
 import { RobotConfig } from "./robot";
 
-export async function config(argsConfigName: string = undefined): Promise<RobotConfig> {
+export async function config(argsConfigName: string = undefined, isStreaming: boolean): Promise<RobotConfig> {
   if (argsConfigName === undefined) {
-    const module = await import('../src/configs/main-config.js');
+    let streamingPrefix = '';
+    if (isStreaming) streamingPrefix = 'streaming-';
+    const module = await import((`../src/configs/${streamingPrefix}main-config.js`));
     return module.config;
   }
 

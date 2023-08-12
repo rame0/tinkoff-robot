@@ -9,14 +9,14 @@ import {
   OperationType,
   PortfolioPosition,
   PortfolioResponse
-} from 'tinkoff-invest-api/dist/generated/operations.js';
-import { Account } from "tinkoff-invest-api/dist/generated/users.js";
+} from 'tinkoff-invest-api/cjs/generated/operations.js';
+import { Account } from "tinkoff-invest-api/cjs/generated/users.js";
 import { api } from './init-api.js';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import prompts from 'prompts';
 import kleur from 'kleur';
-import { Instrument, InstrumentIdType } from "tinkoff-invest-api/dist/generated/instruments.js";
+import { Instrument, InstrumentIdType } from "tinkoff-invest-api/cjs/generated/instruments.js";
 import { groupBy } from "../src/utils/groupBy.js";
 
 interface Arguments extends yargs.Arguments {

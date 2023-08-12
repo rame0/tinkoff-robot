@@ -7,26 +7,26 @@
  */
 // import fs from 'fs';
 import MockDate from 'mockdate';
-import {Helpers} from 'tinkoff-invest-api';
-import {Robot} from '../src/robot.js';
-import {config} from '../src/config-klsb.js';
-import {OperationState, OperationType} from 'tinkoff-invest-api/dist/generated/operations.js';
-import {backtestApi as api} from './init-api.js';
-import {StrategyConfig} from "../src/baseStrategy";
-import {CandleInterval} from "tinkoff-invest-api/dist/generated/marketdata.js";
+import { Helpers } from 'tinkoff-invest-api';
+import { Robot } from '../src/robot.js';
+import { config } from '../src/configs/config-klsb.js';
+import { OperationState, OperationType } from 'tinkoff-invest-api/dist/generated/operations.js';
+import { backtestApi as api } from './init-api.js';
+import { StrategyConfig } from "../src/baseStrategy";
+import { CandleInterval } from "tinkoff-invest-api/dist/generated/marketdata.js";
 
 let start_n = 0;
-if (process.argv[2]) {
-  start_n = Number(process.argv[2]);
+if (process.argv[ 2 ]) {
+  start_n = Number(process.argv[ 2 ]);
 }
 
 let strategyType = 0;
-if (process.argv[3]) {
-  strategyType = Number(process.argv[3]);
+if (process.argv[ 3 ]) {
+  strategyType = Number(process.argv[ 3 ]);
 }
 
 let interval: CandleInterval = CandleInterval.UNRECOGNIZED;
-switch (Number(process.argv[4])) {
+switch (Number(process.argv[ 4 ])) {
   case 1:
     interval = CandleInterval.CANDLE_INTERVAL_1_MIN;
     break;
@@ -60,20 +60,20 @@ console.log(config.strategies);
 if (config.strategies.length < 1)
   process.exit();
 
-const strategyConfig = config.strategies[0];
-strategyConfig.interval = interval;
+const strategyConfig = config.strategies[ 0 ];
+strategyConfig.candleInterval = interval;
 
 console.log(`strategyType: ${strategyType}`);
 
 void main(strategyConfig);
 
 async function main(strategyConfig: StrategyConfig) {
-  await configureBroker({from, to, candleInterval: strategyConfig.interval});
-
-  const robot = new Robot(api, {...config, logLevel: 'none', strategyType: strategyType,});
+  await configureBroker({ from, to, candleInterval: strategyConfig.candleInterval });
+  const finalConfig = { ...config, logLevel: 'none' };
+  const robot = new Robot(api, finalConfig);
 
   while (await tick()) {
-    await robot.runOnce();
+    await robot.run();
   }
 
   // await showOperations(strategyConfig);
@@ -84,7 +84,7 @@ async function main(strategyConfig: StrategyConfig) {
 }
 
 async function showExpectedYield() {
-  const {expectedYield} = await api.operations.getPortfolio({accountId: ''});
+  const { expectedYield } = await api.operations.getPortfolio({ accountId: '', currency: 0 });
   console.log(`Прибыль: ${Helpers.toNumber(expectedYield)}%`);
 }
 
@@ -111,7 +111,7 @@ async function showExpectedYield() {
 // }
 
 async function countOperations(strategyConfig: StrategyConfig) {
-  const {operations} = await api.operations.getOperations({
+  const { operations } = await api.operations.getOperations({
     figi: strategyConfig.figi,
     state: OperationState.OPERATION_STATE_EXECUTED,
     accountId: ''
@@ -125,6 +125,7 @@ async function configureBroker(config: unknown) {
   await api.orders.postOrder({
     accountId: 'config',
     figi: JSON.stringify(config),
+    instrumentId: JSON.stringify(config),
     quantity: 0,
     direction: 0,
     orderType: 0,
@@ -136,6 +137,7 @@ async function tick() {
   const res = await api.orders.postOrder({
     accountId: 'tick',
     figi: '',
+    instrumentId: '',
     quantity: 0,
     direction: 0,
     orderType: 0,

@@ -25,7 +25,7 @@ export class Orders extends RobotModule {
    * Загружаем существующие заявки
    */
   async load() {
-    const {orders} = await this.account.getOrders();
+    const { orders } = await this.account.getOrders();
     this.items = orders;
     this.logItems();
   }
@@ -33,9 +33,10 @@ export class Orders extends RobotModule {
   /**
    * Создаем новую лимит-заявку
    */
-  async postLimitOrder({figi, direction, quantity, price}: LimitOrderReq) {
+  async postLimitOrder({ figi, direction, quantity, price }: LimitOrderReq) {
     const order = this.robot.config.dryRun ? null : await this.account.postOrder({
       figi,
+      instrumentId: figi,
       quantity,
       direction,
       price,
@@ -61,7 +62,7 @@ export class Orders extends RobotModule {
     }
     const tasks = existingOrders.map(async order => {
       const prevPrice = this.api.helpers.toNumber(order.initialSecurityPrice);
-      const {dryRun} = this.robot.config;
+      const { dryRun } = this.robot.config;
       this.logger.warn(`${this.dryRunStr}Отмена предыдущей заявки ${order.orderId}, цена ${prevPrice}`);
       try {
         if (!dryRun) await this.account.cancelOrder(order.orderId);

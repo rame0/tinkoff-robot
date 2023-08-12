@@ -4,7 +4,7 @@
 import { Logger } from '@vitalets/logger';
 import { SecurityTradingStatus } from 'tinkoff-invest-api/dist/generated/common.js';
 import { Instrument, InstrumentIdType } from 'tinkoff-invest-api/dist/generated/instruments.js';
-import { HistoricCandle } from 'tinkoff-invest-api/dist/generated/marketdata.js';
+import { HistoricCandle } from "tinkoff-invest-api/cjs/generated/marketdata";
 import { CandlesReqParams } from 'tinkoff-invest-api/src/candles-loader/req';
 import { RobotModule } from './utils/robot-module.js';
 import { Robot } from './robot.js';
@@ -47,11 +47,17 @@ export class FigiInstrument extends RobotModule {
     this.logger.log(`Загружаю ${req.minCount} свечей для ${this.info?.ticker} ...`);
     let candles: HistoricCandle[];
     try {
-      candles = (await this.robot.candlesLoader.getCandles({ figi: this.figi, ...req })).candles;
+      candles = (await this.robot.candlesLoader.getCandles({
+        figi: this.figi,
+        instrumentId: this.figi, ...req
+      })).candles;
     } catch (e) {
       this.logger.warn(e.message);
       this.logger.warn("Retry");
-      candles = (await this.robot.candlesLoader.getCandles({ figi: this.figi, ...req })).candles;
+      candles = (await this.robot.candlesLoader.getCandles({
+        figi: this.figi,
+        instrumentId: this.figi, ...req
+      })).candles;
     }
     this.candles = candles;
     this.logger.log(`Свечи загружены: ${candles.length}, текущая цена: ${this.getCurrentPrice()}`);

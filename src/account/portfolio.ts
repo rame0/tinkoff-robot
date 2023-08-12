@@ -2,14 +2,17 @@
  * Класс работы с позициями в портфеле.
  */
 
-import { Helpers } from 'tinkoff-invest-api';
+import { Helpers } from "tinkoff-invest-api";
 import { PortfolioResponse, PositionsResponse } from 'tinkoff-invest-api/dist/generated/operations.js';
 import { RobotModule } from '../utils/robot-module.js';
 
 export class Portfolio extends RobotModule {
   private portfolio?: PortfolioResponse;
   private positionsWithBlocked?: PositionsResponse;
-  private get positions() { return this.portfolio?.positions || []; }
+
+  private get positions() {
+    return this.portfolio?.positions || [];
+  }
 
   /**
    * Загружаем текущие позиции в портфеле.
