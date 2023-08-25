@@ -22,6 +22,11 @@ export class Portfolio extends RobotModule {
     this.logPositions();
   }
 
+  fromStream(portfolio: PortfolioResponse) {
+    this.portfolio = portfolio;
+    this.logPositions();
+  }
+
   /**
    * Загружаем текущие позиции в портфеле с учетом заблокированных активов.
    */

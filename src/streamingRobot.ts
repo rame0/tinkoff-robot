@@ -41,9 +41,22 @@ export class streamingRobot extends Robot {
   }
 
   public async run() {
+    // загрузка состояния портфеля
+    await this.portfolio.load();
+
     // обработка дополнительных событий
     this.api.stream.market.on('error', error => this.logger.error('stream error', error));
     this.api.stream.market.on('close', error => this.logger.error('stream closed, reason:', error));
+
+    this.api.stream.portfolio.watch({
+      accounts: [this.account.accountId],
+    });
+    this.api.stream.portfolio.on('data', (response) => {
+      if (response && response.portfolio) {
+        this.portfolio.fromStream(response.portfolio);
+      }
+    });
+
 
     const subscriptions = [];
     for (const strategy of this.strategies) {
@@ -85,13 +98,13 @@ export class streamingRobot extends Robot {
       }
     );
 
-    while (true) {
-      if (!this.isRunning) {
-        break;
-      }
-      await this.portfolio.load();
-      await this.sleep(1000 * 50);
-    }
+    // while (true) {
+    //   if (!this.isRunning) {
+    //     break;
+    //   }
+
+    //   await this.sleep(1000 * 50);
+    // }
   }
 
   protected async runStrategies() {
