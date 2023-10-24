@@ -207,7 +207,7 @@ export class BaseStrategy extends RobotModule {
     const orders = this.robot.orders.items.filter(order => order.figi === this.config.figi
       && order.direction === OrderDirection.ORDER_DIRECTION_SELL);
     if (this.failsCounter.sell < this.config.keepOrdersAlive.sell && orders.length > 0) {
-      this.logger.warn(`Есть заявки на продажу, лотов. Ждем исполнения... Попытка ${this.failsCounter.sell + 1} из 15`);
+      this.logger.warn(`Есть заявки на продажу, лотов. Ждем исполнения... Попытка ${this.failsCounter.sell + 1} из ${this.config.keepOrdersAlive.sell}`);
       this.failsCounter.sell += 1;
       return false;
     } else {
