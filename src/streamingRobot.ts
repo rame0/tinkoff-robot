@@ -41,24 +41,66 @@ export class streamingRobot extends Robot {
   }
 
   public async run() {
+    let subscriptions = [];
     // загрузка состояния портфеля
     await this.portfolio.load();
 
-    // обработка дополнительных событий
-    this.api.stream.market.on('error', error => this.logger.error('stream error', error));
-    this.api.stream.market.on('close', error => this.logger.error('stream closed, reason:', error));
-
-    this.api.stream.portfolio.watch({
-      accounts: [this.account.accountId],
-    });
+    // подписка на портфель
     this.api.stream.portfolio.on('data', (response) => {
       if (response && response.portfolio) {
         this.portfolio.fromStream(response.portfolio);
       }
     });
+    this.api.stream.portfolio.on('error', error => {
+      this.logger.error('stream error: ', error.name, error.message);
+    });
+    this.api.stream.portfolio.on('close', error => {
+      this.logger.error('stream closed, reason:', error.name, error.message);
+      this.logger.warn("\n\n--- Перезапуск подписки на портфолио ---\n\n");
+      this.startPortfolioWatch();
+    });
 
+    this.startPortfolioWatch();
+    this.logger.warn('Подписались на портфолио');
 
+    // обработка событий стрима рыночных данных
+    this.api.stream.market.on('error', error => {
+      this.logger.error('stream error', error.name, error.message);
+    });
+    this.api.stream.market.on('close', async error => {
+      this.logger.error('stream closed, reason:', error.name, error.message);
+      this.logger.warn("\n\n--- Перезапуск подписки на свечи ---\n\n");
+      try {
+        for (const subscription of subscriptions) {
+          await subscription();
+        }
+      } catch (e) {
+        //
+      }
+      subscriptions = await this.startMarketWatch();
+    });
+
+    // подписка на свечи
+    subscriptions = await this.startMarketWatch();
+
+    process.on('SIGINT', () => {
+        this.logger.warn('Exiting...');
+        subscriptions.forEach(async subscription => await subscription());
+        this.isRunning = false;
+        process.exit(0);
+      }
+    );
+
+  }
+
+  protected async runStrategies() {
+    const tasks = this.strategies.map(strategy => strategy.run());
+    await Promise.all(tasks);
+  }
+
+  protected async startMarketWatch() {
     const subscriptions = [];
+
     for (const strategy of this.strategies) {
       this.logger.info(`Подписались на свечи ${strategy.config.figi}...`);
       strategy.delay = this.intervalToMs(strategy.config.candleInterval);
@@ -72,7 +114,7 @@ export class streamingRobot extends Robot {
           ],
           waitingClose: false,
         }, (candle: Candle) => {
-          candle.time.setSeconds(0, 0);
+          candle.time.setMilliseconds(0);
           if (strategy.lastTime.getTime() + strategy.delay > candle.time.getTime()) {
             return;
           }
@@ -90,25 +132,12 @@ export class streamingRobot extends Robot {
       ));
     }
 
-    process.on('SIGINT', () => {
-        this.logger.warn('Exiting...');
-        subscriptions.forEach(async subscription => await subscription());
-        this.isRunning = false;
-        process.exit(0);
-      }
-    );
-
-    // while (true) {
-    //   if (!this.isRunning) {
-    //     break;
-    //   }
-
-    //   await this.sleep(1000 * 50);
-    // }
+    return subscriptions;
   }
 
-  protected async runStrategies() {
-    const tasks = this.strategies.map(strategy => strategy.run());
-    await Promise.all(tasks);
+  protected startPortfolioWatch() {
+    this.api.stream.portfolio.watch({
+      accounts: [this.account.accountId],
+    });
   }
 }
