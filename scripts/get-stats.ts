@@ -74,9 +74,9 @@ async function main(args: Arguments) {
 
 async function getPeriod(args: Arguments) {
   let start: Date = new Date(args.start);
-  let end: Date = new Date();
+  let end: Date = new Date(args.end);
 
-  if (args.end != "0") {
+  if (args.end == "0") {
     end = new Date();
   }
   end.setHours(23, 59, 59, 999);
@@ -358,18 +358,21 @@ function processOperations(operations: Operation[]) {
     commissions = 0,
     service_commission = 0,
     total_buys_price = 0,
+    total_sell_price = 0,
     balance = 0;
+
+  console.log(operations)
 
   for (const operation of operations) {
     const o_price = api.helpers.toNumber(operation.price) || 0;
     const payment = api.helpers.toNumber(operation.payment) || 0;
-
+    const operation_price = operation.quantity * o_price;
     switch (operation.operationType) {
       case OperationType.OPERATION_TYPE_BUY:
       case OperationType.OPERATION_TYPE_BUY_CARD:
         total_buys += operation.quantity;
-        total_buys_price += operation.quantity * o_price;
-        message += `${kleur.bold().red("- ")} ${o_price} * ${operation.quantity} = ${total_buys} ${operation.currency} \n`;
+        total_buys_price += operation_price;
+        message += `${kleur.bold().red("- ")} ${o_price} * ${operation.quantity} = ${operation_price} ${operation.currency} \n`;
         balance -= (operation.quantity * o_price);
         turnover += (operation.quantity * o_price);
         total_operations += 1;
@@ -378,7 +381,8 @@ function processOperations(operations: Operation[]) {
       case OperationType.OPERATION_TYPE_SELL:
       case OperationType.OPERATION_TYPE_SELL_CARD:
         total_sells += operation.quantity;
-        message += `${kleur.bold().green("+ ")} ${o_price} * ${operation.quantity} = ${total_buys} ${operation.currency} \n`;
+        total_sell_price += operation_price;
+        message += `${kleur.bold().green("+ ")} ${o_price} * ${operation.quantity} = ${operation_price} ${operation.currency} \n`;
         balance += (operation.quantity * o_price);
         turnover += (operation.quantity * o_price);
         total_operations += 1;
@@ -422,8 +426,14 @@ function processOperations(operations: Operation[]) {
         service_commission += payment;
         break;
       default:
-        // console.log(operation);
+        message += `${kleur.yellow("UNKNOWN")}\n`;
+        console.log(operation);
         break;
+    }
+
+    if (operation.quantityRest > 0) {
+      message += "\n";
+      message += `${kleur.red('Rest: ')}${operation.quantityRest}\n`;
     }
   }
   return {
