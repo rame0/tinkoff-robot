@@ -52,7 +52,15 @@ export class StupidStrategy extends BaseStrategy {
     };
     this.logSignals(signals);
     // todo: здесь может быть более сложная логика комбинации сигналов.
-    return signals.bySell || signals.profitLoss;
+
+    if (options.availableLots > 0 && (signals.profitLoss == 'sell')) {
+      return 'sell';
+    } else if (options.availableLots > 0 && (signals.bySell == 'buy')) {
+      return null;
+    } else {
+      return signals.bySell || signals.profitLoss;
+    }
+
   }
 
   /**
