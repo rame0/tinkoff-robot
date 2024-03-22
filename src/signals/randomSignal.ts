@@ -1,7 +1,7 @@
-import { Signal, SignalParams, SignalResult } from './base.js';
+import { Signal, SignalResult } from './base.js';
 import { RobotModule } from "../utils/robot-module";
 
-export class RandomSignal extends Signal<{}> {
+export class RandomSignal extends Signal<any> {
   constructor(protected strategy: RobotModule) {
     super(strategy, {});
   }
@@ -10,7 +10,7 @@ export class RandomSignal extends Signal<{}> {
     return 1; // We only need the latest candle to make a random decision
   }
 
-  calc(_: SignalParams): SignalResult {
+  calc(): SignalResult {
     const decision = Math.floor(Math.random() * 3); // Random number between 0 and 2
     if (decision === 0) {
       return 'buy';

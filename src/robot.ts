@@ -17,6 +17,7 @@ import { ProfitRsiSMMAStrategy } from "./strategies/profitRsiSMMAStrategy.js";
 import { StupidStrategy } from "./strategies/stupidStrategy.js";
 import { StrategyTypes } from "./strategies/strategyTypes.js";
 import { CandleInterval } from "tinkoff-invest-api/cjs/generated/marketdata.js";
+import { randomStrategy } from "./strategies/randomStrategy";
 
 const { REAL_ACCOUNT_ID = '', SANDBOX_ACCOUNT_ID = '' } = process.env;
 
@@ -60,10 +61,18 @@ export class Robot {
     this.orders = new Orders(this);
     this.portfolio = new Portfolio(this);
 
-    this.strategies = this.config.strategies.map(sc => sc.strategyType == StrategyTypes.profitRsiSMMA
-      ? new ProfitRsiSMMAStrategy(this, sc)
-      : new StupidStrategy(this, sc)
-    );
+    this.strategies = this.config.strategies.map(sc => {
+      switch (sc.strategyType) {
+        case StrategyTypes.profitRsiSMMA:
+          return new ProfitRsiSMMAStrategy(this, sc);
+        case StrategyTypes.stupid:
+          return new StupidStrategy(this, sc);
+        case StrategyTypes.random:
+          return new randomStrategy(this, sc);
+        default:
+          throw new Error(`Unknown strategy type: ${sc.strategyType}`);
+      }
+    });
 
     this.delay = this.intervalToMs(config.strategies[ 0 ].candleInterval);
 
