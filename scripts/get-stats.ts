@@ -125,11 +125,20 @@ async function selectPositionCycle(options: {
 }): Promise<number> {
   const selectedFigi = await selectPosition(options.portfolio.positions, options.allOperations);
 
+  const operationsResponse = await api.operations.getOperations({
+    accountId: options.api_account.accountId,
+    state: OperationState.OPERATION_STATE_EXECUTED,
+    from: options.start,
+    to: options.end,
+    figi: selectedFigi,
+  });
+
   await countPerformance({
     account: options.api_account,
     figi: selectedFigi,
     position: options.portfolio.positions[ selectedFigi ],
-    operations: options.allOperations[ selectedFigi ],
+    // operations: options.allOperations[ selectedFigi ],
+    operations: operationsResponse.operations,
     start: options.start,
     end: options.end,
     short: args.short
@@ -221,7 +230,8 @@ function showAccountHeader(account: TinkoffAccount, portfolio: PortfolioResponse
 }
 
 async function selectPosition(positions: PortfolioPosition[], operations: OperationsByFigi) {
-  const figis = [...Object.keys(operations), ...Object.keys(positions)];
+  let figis = [...Object.keys(operations), ...Object.keys(positions)];
+  figis = [...new Set(figis)]
   let key = 0;
   for (const figi of figis) {
     let position = positions[ figi ] || undefined;
@@ -312,6 +322,7 @@ async function countPerformance(options: {
       service_commission,
       total_buys_price,
       balance,
+      bond_repayment,
     } = processOperations(options.operations);
 
   const possible_revenue =
@@ -328,6 +339,9 @@ async function countPerformance(options: {
   console.log(kleur.yellow("Всего продано: ") + total_sells);
   console.log(kleur.yellow("Текущий баланс: ") + (api.helpers.toNumber(options.position?.quantity) || 0));
   console.log(kleur.yellow("Дивиденды и купоны: ") + dividend);
+  if (bond_repayment > 0) {
+    console.log(kleur.yellow("Погашение облигаций: ") + bond_repayment);
+  }
   console.log(kleur.yellow("Всего операций: ") + total_operations);
   console.log(kleur.yellow("Всего комиссий: ") + commissions);
   console.log(kleur.yellow("Оплата тарифа: ") + service_commission);
@@ -359,9 +373,10 @@ function processOperations(operations: Operation[]) {
     service_commission = 0,
     total_buys_price = 0,
     total_sell_price = 0,
-    balance = 0;
+    balance = 0,
+    bond_repayment = 0;
 
-  console.log(operations)
+  //console.log(operations)
 
   for (const operation of operations) {
     const o_price = api.helpers.toNumber(operation.price) || 0;
@@ -425,6 +440,12 @@ function processOperations(operations: Operation[]) {
         balance += payment;
         service_commission += payment;
         break;
+      case OperationType.OPERATION_TYPE_BOND_REPAYMENT:
+        message += `${kleur.green("+ bond repayment:  ")} ${api.helpers.toMoneyString(operation.payment)} \n`;
+        balance += payment;
+        bond_repayment += payment;
+        break;
+
       default:
         message += `${kleur.yellow("UNKNOWN")}\n`;
         console.log(operation);
@@ -448,6 +469,7 @@ function processOperations(operations: Operation[]) {
     commissions,
     service_commission,
     total_buys_price,
-    balance
+    balance,
+    bond_repayment
   };
 }
