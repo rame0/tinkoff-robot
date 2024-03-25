@@ -15,14 +15,14 @@ export const config: RobotConfig = {
   strategies: [
     { // TCS Group
       /** ID инструмента */
-      figi: 'TCS10A101X50',
+      figi: 'TCS00A107597',
       /** По сколько лотов покупаем/продаем */
       orderLots: 1,
       /** Комиссия брокера, % от суммы сделки */
       brokerFee: 0.0,
       /** Интервал свечей */
-      candleInterval: CandleInterval.CANDLE_INTERVAL_1_MIN,
-      subscriptionInterval: SubscriptionInterval.SUBSCRIPTION_INTERVAL_ONE_MINUTE,
+      candleInterval: CandleInterval.CANDLE_INTERVAL_5_MIN,
+      subscriptionInterval: SubscriptionInterval.SUBSCRIPTION_INTERVAL_FIVE_MINUTES,
       strategyType: StrategyTypes.random,
 
       keepOrdersAlive: {
